@@ -1,0 +1,39 @@
+[package]
+name = "heroacp"
+version = "0.1.0"
+edition = "2021"
+description = "HeroACP - Agent Client Protocol implementation in Rust"
+license = "Apache-2.0"
+repository = "https://github.com/heroacp/heroacp"
+readme = "README.md"
+keywords = ["acp", "agent", "protocol", "ai", "coding-assistant"]
+categories = ["development-tools", "network-programming"]
+
+[lib]
+name = "heroacp"
+path = "src/lib.rs"
+
+[[bin]]
+name = "acp-server"
+path = "src/bin/server.rs"
+
+[[bin]]
+name = "acp-client"
+path = "src/bin/client.rs"
+
+[dependencies]
+tokio = { version = "1.35", features = ["full", "process"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+async-trait = "0.1"
+uuid = { version = "1.6", features = ["v4"] }
+thiserror = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+tokio-test = "0.4"
+
+[features]
+default = []
+full = []
