@@ -13,16 +13,29 @@
 //!
 //! ## Quick Start - Server
 //!
-//! ```rust,no_run
+//! ```rust,ignore
 //! use heroacp::server::{Agent, Server};
 //! use heroacp::protocol::*;
 //! use async_trait::async_trait;
+//! use tokio::sync::mpsc;
 //!
 //! struct MyAgent;
 //!
 //! #[async_trait]
 //! impl Agent for MyAgent {
-//!     // Implement agent methods...
+//!     async fn initialize(&self, params: InitializeParams) -> AcpResult<InitializeResult> {
+//!         Ok(InitializeResult {
+//!             agent_info: AgentInfo { name: "my-agent".into(), version: "1.0".into() },
+//!             capabilities: AgentCapabilities::default(),
+//!             instructions: None,
+//!         })
+//!     }
+//!     async fn session_new(&self, params: SessionNewParams) -> AcpResult<SessionNewResult> {
+//!         Ok(SessionNewResult { session_id: params.session_id })
+//!     }
+//!     async fn session_prompt(&self, params: SessionPromptParams, tx: mpsc::Sender<SessionUpdate>) -> AcpResult<SessionPromptResult> {
+//!         Ok(SessionPromptResult { status: "ok".into() })
+//!     }
 //! }
 //!
 //! #[tokio::main]

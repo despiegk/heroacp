@@ -115,3 +115,145 @@ impl AcpError {
 
 /// Result type for ACP operations.
 pub type AcpResult<T> = Result<T, AcpError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_error_codes() {
+        assert_eq!(codes::PARSE_ERROR, -32700);
+        assert_eq!(codes::INVALID_REQUEST, -32600);
+        assert_eq!(codes::METHOD_NOT_FOUND, -32601);
+        assert_eq!(codes::INVALID_PARAMS, -32602);
+        assert_eq!(codes::INTERNAL_ERROR, -32603);
+        assert_eq!(codes::RESOURCE_NOT_FOUND, -32001);
+        assert_eq!(codes::PERMISSION_DENIED, -32002);
+        assert_eq!(codes::INVALID_STATE, -32003);
+        assert_eq!(codes::CAPABILITY_NOT_SUPPORTED, -32004);
+    }
+
+    #[test]
+    fn test_parse_error_code() {
+        let error = AcpError::ParseError("invalid json".to_string());
+        assert_eq!(error.code(), codes::PARSE_ERROR);
+    }
+
+    #[test]
+    fn test_invalid_request_code() {
+        let error = AcpError::InvalidRequest("missing id".to_string());
+        assert_eq!(error.code(), codes::INVALID_REQUEST);
+    }
+
+    #[test]
+    fn test_method_not_found_code() {
+        let error = AcpError::MethodNotFound("unknown/method".to_string());
+        assert_eq!(error.code(), codes::METHOD_NOT_FOUND);
+    }
+
+    #[test]
+    fn test_invalid_params_code() {
+        let error = AcpError::InvalidParams("missing field".to_string());
+        assert_eq!(error.code(), codes::INVALID_PARAMS);
+    }
+
+    #[test]
+    fn test_internal_error_code() {
+        let error = AcpError::InternalError("unexpected error".to_string());
+        assert_eq!(error.code(), codes::INTERNAL_ERROR);
+    }
+
+    #[test]
+    fn test_resource_not_found_code() {
+        let error = AcpError::ResourceNotFound("/path/to/file".to_string());
+        assert_eq!(error.code(), codes::RESOURCE_NOT_FOUND);
+    }
+
+    #[test]
+    fn test_permission_denied_code() {
+        let error = AcpError::PermissionDenied("write access".to_string());
+        assert_eq!(error.code(), codes::PERMISSION_DENIED);
+    }
+
+    #[test]
+    fn test_invalid_state_code() {
+        let error = AcpError::InvalidState("not initialized".to_string());
+        assert_eq!(error.code(), codes::INVALID_STATE);
+    }
+
+    #[test]
+    fn test_capability_not_supported_code() {
+        let error = AcpError::CapabilityNotSupported("audio".to_string());
+        assert_eq!(error.code(), codes::CAPABILITY_NOT_SUPPORTED);
+    }
+
+    #[test]
+    fn test_channel_error_code() {
+        let error = AcpError::ChannelError("channel closed".to_string());
+        assert_eq!(error.code(), codes::INTERNAL_ERROR);
+    }
+
+    #[test]
+    fn test_connection_closed_code() {
+        let error = AcpError::ConnectionClosed;
+        assert_eq!(error.code(), codes::INTERNAL_ERROR);
+    }
+
+    #[test]
+    fn test_timeout_code() {
+        let error = AcpError::Timeout;
+        assert_eq!(error.code(), codes::INTERNAL_ERROR);
+    }
+
+    #[test]
+    fn test_error_message() {
+        let error = AcpError::ParseError("invalid json".to_string());
+        assert_eq!(error.message(), "Parse error: invalid json");
+
+        let error = AcpError::MethodNotFound("foo".to_string());
+        assert_eq!(error.message(), "Method not found: foo");
+
+        let error = AcpError::ConnectionClosed;
+        assert_eq!(error.message(), "Connection closed");
+
+        let error = AcpError::Timeout;
+        assert_eq!(error.message(), "Request timeout");
+    }
+
+    #[test]
+    fn test_error_display() {
+        let error = AcpError::ResourceNotFound("/test.txt".to_string());
+        let display = format!("{}", error);
+        assert_eq!(display, "Resource not found: /test.txt");
+    }
+
+    #[test]
+    fn test_io_error_conversion() {
+        let io_error = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
+        let acp_error: AcpError = io_error.into();
+        assert_eq!(acp_error.code(), codes::INTERNAL_ERROR);
+        assert!(acp_error.message().contains("I/O error"));
+    }
+
+    #[test]
+    fn test_json_error_conversion() {
+        let json_str = "invalid json {";
+        let result: Result<serde_json::Value, _> = serde_json::from_str(json_str);
+        let json_error = result.unwrap_err();
+        let acp_error: AcpError = json_error.into();
+        assert_eq!(acp_error.code(), codes::PARSE_ERROR);
+    }
+
+    #[test]
+    fn test_acp_result_ok() {
+        let result: AcpResult<i32> = Ok(42);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 42);
+    }
+
+    #[test]
+    fn test_acp_result_err() {
+        let result: AcpResult<i32> = Err(AcpError::Timeout);
+        assert!(result.is_err());
+    }
+}

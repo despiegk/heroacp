@@ -242,3 +242,295 @@ pub enum SessionUpdateType {
     /// Agent is done with the response.
     Done,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_protocol_version() {
+        assert_eq!(PROTOCOL_VERSION, "2025.1");
+    }
+
+    #[test]
+    fn test_client_info_serialization() {
+        let info = ClientInfo {
+            name: "test-client".to_string(),
+            version: "1.0.0".to_string(),
+        };
+        let json = serde_json::to_string(&info).unwrap();
+        assert!(json.contains("test-client"));
+        assert!(json.contains("1.0.0"));
+
+        let deserialized: ClientInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.name, "test-client");
+        assert_eq!(deserialized.version, "1.0.0");
+    }
+
+    #[test]
+    fn test_agent_info_serialization() {
+        let info = AgentInfo {
+            name: "test-agent".to_string(),
+            version: "2.0.0".to_string(),
+        };
+        let json = serde_json::to_string(&info).unwrap();
+        let deserialized: AgentInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.name, "test-agent");
+        assert_eq!(deserialized.version, "2.0.0");
+    }
+
+    #[test]
+    fn test_client_capabilities_default() {
+        let caps = ClientCapabilities::default();
+        assert!(!caps.text_files);
+        assert!(!caps.terminal);
+        assert!(!caps.audio);
+        assert!(!caps.image);
+        assert!(caps.experimental.is_empty());
+    }
+
+    #[test]
+    fn test_client_capabilities_serialization() {
+        let caps = ClientCapabilities {
+            text_files: true,
+            terminal: true,
+            embedded_context: false,
+            audio: false,
+            image: true,
+            experimental: HashMap::new(),
+        };
+        let json = serde_json::to_string(&caps).unwrap();
+        let deserialized: ClientCapabilities = serde_json::from_str(&json).unwrap();
+        assert!(deserialized.text_files);
+        assert!(deserialized.terminal);
+        assert!(deserialized.image);
+        assert!(!deserialized.audio);
+    }
+
+    #[test]
+    fn test_agent_capabilities_default() {
+        let caps = AgentCapabilities::default();
+        assert!(!caps.streaming);
+        assert!(!caps.audio);
+        assert!(!caps.image);
+        assert!(caps.supported_modes.is_empty());
+        assert!(caps.tools.is_empty());
+    }
+
+    #[test]
+    fn test_content_block_text() {
+        let block = ContentBlock::Text {
+            text: "Hello, world!".to_string(),
+        };
+        let json = serde_json::to_string(&block).unwrap();
+        assert!(json.contains("\"type\":\"text\""));
+        assert!(json.contains("Hello, world!"));
+
+        let deserialized: ContentBlock = serde_json::from_str(&json).unwrap();
+        if let ContentBlock::Text { text } = deserialized {
+            assert_eq!(text, "Hello, world!");
+        } else {
+            panic!("Expected Text block");
+        }
+    }
+
+    #[test]
+    fn test_content_block_image() {
+        let block = ContentBlock::Image {
+            format: "png".to_string(),
+            data: "base64data".to_string(),
+        };
+        let json = serde_json::to_string(&block).unwrap();
+        assert!(json.contains("\"type\":\"image\""));
+
+        let deserialized: ContentBlock = serde_json::from_str(&json).unwrap();
+        if let ContentBlock::Image { format, data } = deserialized {
+            assert_eq!(format, "png");
+            assert_eq!(data, "base64data");
+        } else {
+            panic!("Expected Image block");
+        }
+    }
+
+    #[test]
+    fn test_content_block_resource() {
+        let block = ContentBlock::Resource {
+            uri: "file:///test.txt".to_string(),
+            mime_type: "text/plain".to_string(),
+            content: "file content".to_string(),
+        };
+        let json = serde_json::to_string(&block).unwrap();
+        assert!(json.contains("\"type\":\"resource\""));
+    }
+
+    #[test]
+    fn test_tool_call_serialization() {
+        let tool_call = ToolCall {
+            id: "tool_1".to_string(),
+            name: "read_file".to_string(),
+            arguments: serde_json::json!({"path": "/test.txt"}),
+        };
+        let json = serde_json::to_string(&tool_call).unwrap();
+        let deserialized: ToolCall = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.id, "tool_1");
+        assert_eq!(deserialized.name, "read_file");
+    }
+
+    #[test]
+    fn test_tool_call_status_serialization() {
+        let status = ToolCallStatus::Completed;
+        let json = serde_json::to_string(&status).unwrap();
+        assert_eq!(json, "\"completed\"");
+
+        let status = ToolCallStatus::InProgress;
+        let json = serde_json::to_string(&status).unwrap();
+        assert_eq!(json, "\"in_progress\"");
+
+        let status = ToolCallStatus::Failed;
+        let json = serde_json::to_string(&status).unwrap();
+        assert_eq!(json, "\"failed\"");
+    }
+
+    #[test]
+    fn test_tool_call_update_serialization() {
+        let update = ToolCallUpdate {
+            id: "tool_1".to_string(),
+            status: ToolCallStatus::Completed,
+            result: Some(serde_json::json!({"content": "test"})),
+            error: None,
+        };
+        let json = serde_json::to_string(&update).unwrap();
+        assert!(json.contains("\"status\":\"completed\""));
+        assert!(json.contains("\"result\""));
+        assert!(!json.contains("\"error\""));
+
+        let deserialized: ToolCallUpdate = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.id, "tool_1");
+        assert!(matches!(deserialized.status, ToolCallStatus::Completed));
+    }
+
+    #[test]
+    fn test_plan_serialization() {
+        let plan = Plan {
+            steps: vec![
+                PlanStep {
+                    id: 1,
+                    description: "Step 1".to_string(),
+                    status: PlanStepStatus::Completed,
+                },
+                PlanStep {
+                    id: 2,
+                    description: "Step 2".to_string(),
+                    status: PlanStepStatus::InProgress,
+                },
+                PlanStep {
+                    id: 3,
+                    description: "Step 3".to_string(),
+                    status: PlanStepStatus::Pending,
+                },
+            ],
+        };
+        let json = serde_json::to_string(&plan).unwrap();
+        let deserialized: Plan = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.steps.len(), 3);
+        assert!(matches!(deserialized.steps[0].status, PlanStepStatus::Completed));
+        assert!(matches!(deserialized.steps[1].status, PlanStepStatus::InProgress));
+    }
+
+    #[test]
+    fn test_plan_step_status_serialization() {
+        let statuses = vec![
+            (PlanStepStatus::Pending, "\"pending\""),
+            (PlanStepStatus::InProgress, "\"in_progress\""),
+            (PlanStepStatus::Completed, "\"completed\""),
+            (PlanStepStatus::Skipped, "\"skipped\""),
+            (PlanStepStatus::Failed, "\"failed\""),
+        ];
+
+        for (status, expected) in statuses {
+            let json = serde_json::to_string(&status).unwrap();
+            assert_eq!(json, expected);
+        }
+    }
+
+    #[test]
+    fn test_session_update_agent_message_chunk() {
+        let update = SessionUpdate {
+            session_id: "session_1".to_string(),
+            update_type: SessionUpdateType::AgentMessageChunk {
+                text: "Hello".to_string(),
+            },
+        };
+        let json = serde_json::to_string(&update).unwrap();
+        assert!(json.contains("\"session_id\":\"session_1\""));
+        assert!(json.contains("\"type\":\"agent_message_chunk\""));
+        assert!(json.contains("\"text\":\"Hello\""));
+    }
+
+    #[test]
+    fn test_session_update_agent_thought_chunk() {
+        let update = SessionUpdate {
+            session_id: "session_1".to_string(),
+            update_type: SessionUpdateType::AgentThoughtChunk {
+                text: "Thinking...".to_string(),
+            },
+        };
+        let json = serde_json::to_string(&update).unwrap();
+        assert!(json.contains("\"type\":\"agent_thought_chunk\""));
+    }
+
+    #[test]
+    fn test_session_update_tool_call() {
+        let update = SessionUpdate {
+            session_id: "session_1".to_string(),
+            update_type: SessionUpdateType::ToolCall(ToolCall {
+                id: "tool_1".to_string(),
+                name: "read_file".to_string(),
+                arguments: serde_json::json!({}),
+            }),
+        };
+        let json = serde_json::to_string(&update).unwrap();
+        assert!(json.contains("\"type\":\"tool_call\""));
+    }
+
+    #[test]
+    fn test_session_update_done() {
+        let update = SessionUpdate {
+            session_id: "session_1".to_string(),
+            update_type: SessionUpdateType::Done,
+        };
+        let json = serde_json::to_string(&update).unwrap();
+        assert!(json.contains("\"type\":\"done\""));
+    }
+
+    #[test]
+    fn test_mcp_server_serialization() {
+        let server = McpServer {
+            name: "test-mcp".to_string(),
+            url: "stdio:///path/to/server".to_string(),
+            credentials: HashMap::new(),
+        };
+        let json = serde_json::to_string(&server).unwrap();
+        let deserialized: McpServer = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.name, "test-mcp");
+        assert_eq!(deserialized.url, "stdio:///path/to/server");
+    }
+
+    #[test]
+    fn test_tool_info_serialization() {
+        let tool = ToolInfo {
+            name: "read_file".to_string(),
+            description: "Reads a file".to_string(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string"}
+                }
+            }),
+        };
+        let json = serde_json::to_string(&tool).unwrap();
+        let deserialized: ToolInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.name, "read_file");
+        assert_eq!(deserialized.description, "Reads a file");
+    }
+}
